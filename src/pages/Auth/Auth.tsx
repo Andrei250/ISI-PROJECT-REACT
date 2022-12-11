@@ -37,7 +37,6 @@ const Auth = (props) => {
         setErrorMessageLogin('');
 
         firebaseAuth.signInWithEmailAndPassword(loginEmail, loginPassword).then(async (response) => {
-            console.log(response);
             sessionStorage.setItem('Auth Token', response.user!.refreshToken);
             navigate('/app', { replace: true });
         }).catch((error) => {

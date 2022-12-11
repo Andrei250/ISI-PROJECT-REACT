@@ -16,6 +16,7 @@
     "esri-loader": "^3.7.0",
     "firebase": "^7.24.0",
     "react": "^18.2.0",
+    "react-bootstrap": "^2.7.0",
     "react-dom": "^18.2.0",
     "react-loading": "^2.0.3",
     "react-redux-firebase": "^3.11.0",
@@ -50,6 +51,8 @@
     ]
   },
   "devDependencies": {
+    "@types/bootstrap": "^5.2.6",
+    "@types/react-bootstrap": "^0.32.32",
     "react-router-dom": "^6.4.5"
   }
 }

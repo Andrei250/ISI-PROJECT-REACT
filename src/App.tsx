@@ -11,12 +11,7 @@ function App() {
         <Routes>
           <Route path="/auth" element={<Auth />} />
           <Route path="/" element={<Loading />} />
-          <Route path="/app" element={<BucharestMap />}>
-            <Route index element={<BucharestMap />} />
-            {/* <Route path="blogs" element={<Blogs />} />
-            <Route path="contact" element={<Contact />} />
-            <Route path="*" element={<NoPage />} /> */}
-          </Route>
+          <Route path="/app" element={<BucharestMap />} />
         </Routes>
       </BrowserRouter>
 

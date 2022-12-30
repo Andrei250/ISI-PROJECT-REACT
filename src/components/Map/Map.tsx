@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadModules } from "esri-loader";
 import "./Map.scss";
 import MapView from "@arcgis/core/views/MapView";
@@ -15,11 +15,11 @@ import Locate from "@arcgis/core/widgets/Locate";
 import esriConfig from "@arcgis/core/config";
 import firebase, { firebaseAuth } from "../../firebase";
 import { useNavigate } from "react-router-dom";
-import Track from "@arcgis/core/widgets/Track";
 import { Attraction } from "../../models/attraction.model";
 import RouteParameters from "@arcgis/core/rest/support/RouteParameters";
 import FeatureSet from "@arcgis/core/rest/support/FeatureSet";
 import * as route from "@arcgis/core/rest/route";
+import { Button, Form, InputGroup, Modal } from "react-bootstrap";
 
 function BucharestMap() {
 	let map: Map,
@@ -28,7 +28,9 @@ function BucharestMap() {
 		center: Array<number> = [26.096306, 44.439663],
 		basemap = "streets-navigation-vector",
 		graphicsLayer: GraphicsLayer,
-		pointGraphic: Graphic;
+		graphicsLayerFavourite: GraphicsLayer,
+		pointGraphic: Graphic,
+		favouriteGraphic: Graphic;
 
 	const mapElement = useRef(null);
 	const navigate = useNavigate();
@@ -36,23 +38,32 @@ function BucharestMap() {
 	const routeUrl =
 		"https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
 
+	map = new Map({
+		basemap: basemap,
+	});
+
+	esriConfig.apiKey =
+		"AAPK8c1c645b82994e9f8c82acdc57febc098RwiOiGQUDWfauG-FNzYWqfJLlmIh01wSbF7fzHKvYZ7xQ3ygTe3yRG2R720qK8I";
+
+	const [show, setShow] = useState(false);
+	const [title, setTitle] = useState("");
+	const [details, setDetails] = useState("");
+	const [favouriteCoords, setFavouriteCoords] = useState([] as Array<number>);
+
+	const handleClose = () => setShow(false);
+	const handleShow = () => {
+		if (favouriteCoords.length < 1) return;
+
+		setShow(true);
+	};
+
 	useEffect(() => {
-		map = new Map({
-			basemap: basemap,
-		});
-
-		esriConfig.apiKey =
-			"AAPK8c1c645b82994e9f8c82acdc57febc098RwiOiGQUDWfauG-FNzYWqfJLlmIh01wSbF7fzHKvYZ7xQ3ygTe3yRG2R720qK8I";
-
-		addFeatureLayers();
-
 		view = new MapView({
 			map: map,
 			center: center,
 			zoom: zoom,
 			container: mapElement.current as any,
 		});
-
 		const locate = new Locate({
 			view: view,
 			useHeadingEnabled: false,
@@ -63,6 +74,21 @@ function BucharestMap() {
 		});
 		view.ui.add(locate, "top-left");
 
+		view.on("click", function (event) {
+			var lat = Math.round(event.mapPoint.latitude * 1000000) / 1000000;
+			var lon = Math.round(event.mapPoint.longitude * 1000000) / 1000000;
+			const arr = [lat, lon];
+
+			addFavouritePoint(lat, lon);
+			setFavouriteCoords(arr);
+		});
+
+		addFeatureLayers();
+
+		getAttractions();
+	}, []);
+
+	async function getAttractions() {
 		firebase
 			.database()
 			.ref("/attractions")
@@ -79,11 +105,32 @@ function BucharestMap() {
 							attraction.title
 						);
 					});
-
-					// getRoute();
 				}
 			});
-	});
+
+		firebase.auth().onAuthStateChanged((user) => {
+			if (user) {
+				firebase
+					.database()
+					.ref("/favourites/" + user.uid)
+					.on("value", (snapshot) => {
+						if (snapshot.exists()) {
+							snapshot.forEach((element) => {
+								const attraction: Attraction = element.val();
+
+								attractions.push(attraction);
+
+								addPoint(
+									attraction.lat,
+									attraction.long,
+									attraction.title
+								);
+							});
+						}
+					});
+			}
+		});
+	}
 
 	function getRoute() {
 		const routeParams = new RouteParameters({
@@ -186,6 +233,38 @@ function BucharestMap() {
 		// view.graphics.add(pointGraphic);
 	};
 
+	const addFavouritePoint = (lat: number, lng: number) => {
+		if (graphicsLayerFavourite !== undefined)
+			graphicsLayerFavourite.remove(favouriteGraphic);
+
+		graphicsLayerFavourite = new GraphicsLayer();
+
+		map.add(graphicsLayerFavourite);
+
+		const point = {
+			//Create a point
+			type: "point",
+			longitude: lng,
+			latitude: lat,
+		};
+
+		const simpleMarkerSymbol = {
+			type: "simple-marker",
+			color: [226, 119, 40], // Orange
+			outline: {
+				color: [255, 255, 255], // White
+				width: 1,
+			},
+		};
+
+		favouriteGraphic = new Graphic({
+			geometry: point as any,
+			symbol: simpleMarkerSymbol,
+		});
+
+		graphicsLayerFavourite.add(favouriteGraphic);
+	};
+
 	const logout = (e) => {
 		e.preventDefault();
 
@@ -199,6 +278,33 @@ function BucharestMap() {
 			});
 	};
 
+	const handleSubmit = (event) => {
+		event.preventDefault();
+
+		const user = firebaseAuth.currentUser;
+
+		if (user && title.length > 0 && details.length > 0) {
+			const data = {
+				lat: favouriteCoords[0],
+				long: favouriteCoords[1],
+				title: title,
+				details: details,
+			};
+
+			firebase
+				.database()
+				.ref("/favourites")
+				.child(user.uid)
+				.push(data)
+				.then((ev) => {
+					setFavouriteCoords([]);
+					setTitle("");
+					setDetails("");
+					setShow(false);
+				});
+		}
+	};
+
 	return (
 		<>
 			<Navbar bg="light" expand="lg">
@@ -209,8 +315,10 @@ function BucharestMap() {
 					<Navbar.Toggle aria-controls="basic-navbar-nav" />
 					<Navbar.Collapse id="basic-navbar-nav">
 						<Nav className="me-auto w-100">
-							<Nav.Link href="#home">Home</Nav.Link>
-							<Nav.Link href="#link">Link</Nav.Link>
+							<Nav.Link onClick={handleShow}>
+								Add Favourite
+							</Nav.Link>
+							<Nav.Link>Plan a trip</Nav.Link>
 							<NavDropdown
 								title="User"
 								id="basic-nav-dropdown"
@@ -224,6 +332,43 @@ function BucharestMap() {
 					</Navbar.Collapse>
 				</Container>
 			</Navbar>
+
+			<Modal
+				show={show}
+				onHide={handleClose}
+				backdrop="static"
+				keyboard={false}
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>Add favourite place</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<InputGroup className="mb-3">
+						<Form.Control
+							onChange={(event) => setTitle(event.target.value)}
+							placeholder="Title"
+							aria-label="Title"
+						/>
+					</InputGroup>
+
+					<InputGroup>
+						<Form.Control
+							onChange={(event) => setDetails(event.target.value)}
+							as="textarea"
+							aria-label="Details"
+						/>
+					</InputGroup>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={handleClose}>
+						Close
+					</Button>
+					<Button variant="primary" onClick={handleSubmit}>
+						Submit
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
 			<div className={"map-view"} ref={mapElement}></div>
 		</>
 	);

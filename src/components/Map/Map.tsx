@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { loadModules } from "esri-loader";
 import "./Map.scss";
 import MapView from "@arcgis/core/views/MapView";
 import Map from "@arcgis/core/Map";
@@ -20,6 +19,8 @@ import RouteParameters from "@arcgis/core/rest/support/RouteParameters";
 import FeatureSet from "@arcgis/core/rest/support/FeatureSet";
 import * as route from "@arcgis/core/rest/route";
 import { Button, Form, InputGroup, Modal } from "react-bootstrap";
+import ReactSelect from "react-select";
+import { Option } from "../Option/Option";
 
 function BucharestMap() {
 	let map: Map,
@@ -35,6 +36,7 @@ function BucharestMap() {
 	const mapElement = useRef(null);
 	const navigate = useNavigate();
 	const attractions: Attraction[] = [];
+
 	const routeUrl =
 		"https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
 
@@ -46,15 +48,30 @@ function BucharestMap() {
 		"AAPK8c1c645b82994e9f8c82acdc57febc098RwiOiGQUDWfauG-FNzYWqfJLlmIh01wSbF7fzHKvYZ7xQ3ygTe3yRG2R720qK8I";
 
 	const [show, setShow] = useState(false);
+	const [showTrip, setShowTrip] = useState(false);
 	const [title, setTitle] = useState("");
 	const [details, setDetails] = useState("");
 	const [favouriteCoords, setFavouriteCoords] = useState([] as Array<number>);
+	const [optionSelected, setOptionSelected] = useState(null);
+	const [attractionsOption, setAttractionsOption] = useState(
+		[] as Array<Object>
+	);
 
 	const handleClose = () => setShow(false);
 	const handleShow = () => {
 		if (favouriteCoords.length < 1) return;
 
 		setShow(true);
+	};
+
+	const handleCloseTrip = () => setShowTrip(false);
+	const handleShowTrip = () => {
+		setAttractionsOption([]);
+		setShowTrip(true);
+	};
+
+	const handleChange = (selected) => {
+		setOptionSelected(selected);
 	};
 
 	useEffect(() => {
@@ -89,15 +106,23 @@ function BucharestMap() {
 	}, []);
 
 	async function getAttractions() {
+		let attr = [] as Array<Object>;
+
 		firebase
 			.database()
 			.ref("/attractions")
-			.on("value", (snapshot) => {
+			.once("value")
+			.then((snapshot) => {
 				if (snapshot.exists()) {
 					snapshot.forEach((element) => {
 						const attraction: Attraction = element.val();
 
 						attractions.push(attraction);
+
+						attr.push({
+							value: attractions.length - 1,
+							label: attraction.title,
+						});
 
 						addPoint(
 							attraction.lat,
@@ -106,19 +131,27 @@ function BucharestMap() {
 						);
 					});
 				}
+
+				setAttractionsOption(attr);
 			});
 
-		firebase.auth().onAuthStateChanged((user) => {
+		firebase.auth().onAuthStateChanged(async (user) => {
 			if (user) {
 				firebase
 					.database()
 					.ref("/favourites/" + user.uid)
-					.on("value", (snapshot) => {
+					.once("value")
+					.then((snapshot) => {
 						if (snapshot.exists()) {
 							snapshot.forEach((element) => {
 								const attraction: Attraction = element.val();
 
 								attractions.push(attraction);
+
+								attr.push({
+									value: attractions.length - 1,
+									label: attraction.title,
+								});
 
 								addPoint(
 									attraction.lat,
@@ -127,6 +160,7 @@ function BucharestMap() {
 								);
 							});
 						}
+						setAttractionsOption(attr);
 					});
 			}
 		});
@@ -305,6 +339,29 @@ function BucharestMap() {
 		}
 	};
 
+	const handleCalculateTrip = (event) => {
+		event.preventDefault();
+
+		if (optionSelected && (optionSelected as Array<any>).length < 1) return;
+
+		getLocation();
+	};
+
+	function getLocation() {
+		if (navigator.geolocation) {
+			navigator.geolocation.getCurrentPosition(
+				showPosition,
+				deniedLocation
+			);
+		}
+	}
+
+	function showPosition(position) {
+		console.log(position);
+	}
+
+	function deniedLocation(error) {}
+
 	return (
 		<>
 			<Navbar bg="light" expand="lg">
@@ -318,7 +375,9 @@ function BucharestMap() {
 							<Nav.Link onClick={handleShow}>
 								Add Favourite
 							</Nav.Link>
-							<Nav.Link>Plan a trip</Nav.Link>
+							<Nav.Link onClick={handleShowTrip}>
+								Plan a trip
+							</Nav.Link>
 							<NavDropdown
 								title="User"
 								id="basic-nav-dropdown"
@@ -365,6 +424,38 @@ function BucharestMap() {
 					</Button>
 					<Button variant="primary" onClick={handleSubmit}>
 						Submit
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			<Modal
+				show={showTrip}
+				onHide={handleCloseTrip}
+				backdrop="static"
+				keyboard={false}
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>Plan a trip</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<ReactSelect
+						options={attractionsOption}
+						isMulti
+						closeMenuOnSelect={false}
+						hideSelectedOptions={false}
+						components={{
+							Option,
+						}}
+						onChange={handleChange}
+						value={optionSelected}
+					/>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={handleCloseTrip}>
+						Close
+					</Button>
+					<Button variant="primary" onClick={handleCalculateTrip}>
+						Make Trip
 					</Button>
 				</Modal.Footer>
 			</Modal>

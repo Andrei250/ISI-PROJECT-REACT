@@ -20,7 +20,11 @@ import * as route from "@arcgis/core/rest/route";
 import { Button, Form, InputGroup, Modal } from "react-bootstrap";
 import ReactSelect from "react-select";
 import { Option } from "../Option/Option";
-import { sortWithoutLocation, routeUrl } from "../../utils/Utils";
+import {
+	sortWithoutLocation,
+	routeUrl,
+	sortWithLocation,
+} from "../../utils/Utils";
 import Point from "@arcgis/core/geometry/Point";
 
 function BucharestMap() {
@@ -370,7 +374,16 @@ function BucharestMap() {
 	}
 
 	function showPosition(position) {
-		console.log(position);
+		const person = {
+			lat: position.coords.latitude,
+			long: position.coords.longitude,
+		};
+
+		attrTrip = sortWithLocation(attrTrip, person);
+
+		attrTrip = [{ ...person, title: "Person" }, ...attrTrip];
+
+		makeRoute();
 	}
 
 	function deniedLocation(error) {
@@ -407,6 +420,8 @@ function BucharestMap() {
 		}
 
 		getRoute();
+
+		handleCloseTrip();
 	}
 
 	return (

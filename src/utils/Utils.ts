@@ -17,3 +17,6 @@ export const sortWithoutLocation = (
 
 	return attractions;
 };
+
+export const routeUrl =
+	"https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";

@@ -9,7 +9,6 @@ import Container from "react-bootstrap/Container";
 import Nav from "react-bootstrap/Nav";
 import Navbar from "react-bootstrap/Navbar";
 import NavDropdown from "react-bootstrap/NavDropdown";
-import GeoJSONLayer from "@arcgis/core/layers/GeoJSONLayer";
 import Locate from "@arcgis/core/widgets/Locate";
 import esriConfig from "@arcgis/core/config";
 import firebase, { firebaseAuth } from "../../firebase";
@@ -21,6 +20,8 @@ import * as route from "@arcgis/core/rest/route";
 import { Button, Form, InputGroup, Modal } from "react-bootstrap";
 import ReactSelect from "react-select";
 import { Option } from "../Option/Option";
+import { sortWithoutLocation, routeUrl } from "../../utils/Utils";
+import Point from "@arcgis/core/geometry/Point";
 
 function BucharestMap() {
 	let map: Map,
@@ -36,9 +37,7 @@ function BucharestMap() {
 	const mapElement = useRef(null);
 	const navigate = useNavigate();
 	const attractions: Attraction[] = [];
-
-	const routeUrl =
-		"https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
+	let attrTrip: Attraction[] = [];
 
 	map = new Map({
 		basemap: basemap,
@@ -56,6 +55,8 @@ function BucharestMap() {
 	const [attractionsOption, setAttractionsOption] = useState(
 		[] as Array<Object>
 	);
+	const [savedView, setSavedView] = useState(new MapView());
+	const [allAttractions, setAllAttractions] = useState([] as Attraction[]);
 
 	const handleClose = () => setShow(false);
 	const handleShow = () => {
@@ -66,7 +67,6 @@ function BucharestMap() {
 
 	const handleCloseTrip = () => setShowTrip(false);
 	const handleShowTrip = () => {
-		setAttractionsOption([]);
 		setShowTrip(true);
 	};
 
@@ -103,10 +103,44 @@ function BucharestMap() {
 		addFeatureLayers();
 
 		getAttractions();
+
+		setSavedView(view);
 	}, []);
 
-	async function getAttractions() {
+	function getAttractions() {
 		let attr = [] as Array<Object>;
+
+		firebase.auth().onAuthStateChanged((user) => {
+			if (user) {
+				firebase
+					.database()
+					.ref("/favourites/" + user.uid)
+					.once("value")
+					.then((snapshot) => {
+						if (snapshot.exists()) {
+							snapshot.forEach((element) => {
+								const attraction: Attraction = element.val();
+
+								attractions.push(attraction);
+
+								attr.push({
+									value: attractions.length - 1,
+									label: attraction.title,
+								});
+
+								addPoint(
+									attraction.lat,
+									attraction.long,
+									attraction.title
+								);
+							});
+						}
+						setAttractionsOption(attr);
+
+						setAllAttractions(attractions);
+					});
+			}
+		});
 
 		firebase
 			.database()
@@ -133,65 +167,34 @@ function BucharestMap() {
 				}
 
 				setAttractionsOption(attr);
+
+				setAllAttractions(attractions);
 			});
-
-		firebase.auth().onAuthStateChanged(async (user) => {
-			if (user) {
-				firebase
-					.database()
-					.ref("/favourites/" + user.uid)
-					.once("value")
-					.then((snapshot) => {
-						if (snapshot.exists()) {
-							snapshot.forEach((element) => {
-								const attraction: Attraction = element.val();
-
-								attractions.push(attraction);
-
-								attr.push({
-									value: attractions.length - 1,
-									label: attraction.title,
-								});
-
-								addPoint(
-									attraction.lat,
-									attraction.long,
-									attraction.title
-								);
-							});
-						}
-						setAttractionsOption(attr);
-					});
-			}
-		});
 	}
 
 	function getRoute() {
 		const routeParams = new RouteParameters({
 			stops: new FeatureSet({
-				features: view.graphics.toArray(),
+				features: savedView.graphics.toArray(),
 			}),
 		});
 
-		route.solve(routeUrl, routeParams).then(function (data) {
-			data.routeResults.forEach(function (result) {
-				result.route.symbol = {
-					type: "simple-line",
-					color: [5, 150, 255] as any,
-					width: 3,
-				} as any;
-				view.graphics.add(result.route);
+		route
+			.solve(routeUrl, routeParams)
+			.then(function (data) {
+				data.routeResults.forEach(function (result) {
+					result.route.symbol = {
+						type: "simple-line",
+						color: [5, 150, 255] as any,
+						width: 3,
+					} as any;
+					savedView.graphics.add(result.route);
+				});
+			})
+			.catch((error) => {
+				console.log(error);
 			});
-		});
 	}
-
-	const addGeoJSONLayer = (url: string) => {
-		const layer: __esri.GeoJSONLayer = new GeoJSONLayer({
-			url: url,
-		});
-
-		map.add(layer);
-	};
 
 	const addFeatureLayers = () => {
 		const popupTrailheads = {
@@ -243,6 +246,8 @@ function BucharestMap() {
 			latitude: lat,
 		};
 
+		const pt = new Point(point);
+
 		const popupTrailheads = {
 			title: title,
 		};
@@ -257,7 +262,7 @@ function BucharestMap() {
 		};
 
 		pointGraphic = new Graphic({
-			geometry: point as any,
+			geometry: pt,
 			symbol: simpleMarkerSymbol,
 			popupTemplate: popupTrailheads as any,
 		});
@@ -339,10 +344,18 @@ function BucharestMap() {
 		}
 	};
 
-	const handleCalculateTrip = (event) => {
+	const handleCalculateTrip = async (event) => {
 		event.preventDefault();
 
-		if (optionSelected && (optionSelected as Array<any>).length < 1) return;
+		if (!optionSelected || (optionSelected as Array<any>).length < 1)
+			return;
+
+		attrTrip = [];
+
+		(optionSelected as Array<any>).forEach((element) => {
+			if (allAttractions[element["value"]] !== undefined)
+				attrTrip.push(allAttractions[element["value"]]);
+		});
 
 		getLocation();
 	};
@@ -360,7 +373,41 @@ function BucharestMap() {
 		console.log(position);
 	}
 
-	function deniedLocation(error) {}
+	function deniedLocation(error) {
+		attrTrip = sortWithoutLocation(attrTrip);
+		makeRoute();
+	}
+
+	function makeRoute() {
+		savedView.graphics.removeAll();
+
+		for (let i = 0; i < attrTrip.length; ++i) {
+			const point = {
+				longitude: attrTrip[i].long,
+				latitude: attrTrip[i].lat,
+			};
+
+			const pt = new Point(point);
+
+			const simpleMarkerSymbol = {
+				type: "simple-marker",
+				color: [226, 119, 40], // Orange
+				outline: {
+					color: [255, 255, 255], // White
+					width: 1,
+				},
+			};
+
+			pointGraphic = new Graphic({
+				geometry: pt,
+				symbol: simpleMarkerSymbol,
+			});
+
+			savedView.graphics.add(pointGraphic);
+		}
+
+		getRoute();
+	}
 
 	return (
 		<>

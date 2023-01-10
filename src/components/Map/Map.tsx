@@ -26,6 +26,7 @@ import {
 	sortWithLocation,
 } from "../../utils/Utils";
 import Point from "@arcgis/core/geometry/Point";
+import Search from "@arcgis/core/widgets/Search";
 
 function BucharestMap() {
 	let map: Map,
@@ -85,6 +86,7 @@ function BucharestMap() {
 			zoom: zoom,
 			container: mapElement.current as any,
 		});
+
 		const locate = new Locate({
 			view: view,
 			useHeadingEnabled: false,
@@ -93,15 +95,26 @@ function BucharestMap() {
 				return view.goTo(options.target);
 			},
 		});
+
+		const searchWidget = new Search({
+			view: view,
+		});
+		// Adds the search widget below other elements in
+		// the top left corner of the view
+
 		view.ui.add(locate, "top-left");
+		view.ui.add(searchWidget, {
+			position: "top-left",
+			index: 2,
+		});
 
 		view.on("click", function (event) {
 			var lat = Math.round(event.mapPoint.latitude * 1000000) / 1000000;
 			var lon = Math.round(event.mapPoint.longitude * 1000000) / 1000000;
 			const arr = [lat, lon];
 
-			addFavouritePoint(lat, lon);
 			setFavouriteCoords(arr);
+			addFavouritePoint(lat, lon);
 		});
 
 		addFeatureLayers();
@@ -279,10 +292,10 @@ function BucharestMap() {
 	const addFavouritePoint = (lat: number, lng: number) => {
 		if (graphicsLayerFavourite !== undefined)
 			graphicsLayerFavourite.remove(favouriteGraphic);
-
-		graphicsLayerFavourite = new GraphicsLayer();
-
-		map.add(graphicsLayerFavourite);
+		else {
+			graphicsLayerFavourite = new GraphicsLayer();
+			map.add(graphicsLayerFavourite);
+		}
 
 		const point = {
 			//Create a point
@@ -340,6 +353,7 @@ function BucharestMap() {
 				.child(user.uid)
 				.push(data)
 				.then((ev) => {
+					getAttractions();
 					setFavouriteCoords([]);
 					setTitle("");
 					setDetails("");

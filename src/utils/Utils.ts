@@ -1,3 +1,4 @@
+import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
 import { Attraction } from "../models/attraction.model";
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -86,3 +87,7 @@ export const graphicLayerPoints = [
 	[44.42341198992875, 25.967562177759802],
 	[44.442393386780466, 25.96645459629871],
 ];
+
+export const graphicsLayer: GraphicsLayer = new GraphicsLayer({
+	title: "Attractions",
+});

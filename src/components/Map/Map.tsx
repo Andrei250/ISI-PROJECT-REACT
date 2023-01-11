@@ -25,13 +25,12 @@ import {
 	routeUrl,
 	sortWithLocation,
 	graphicLayerPoints,
+	graphicsLayer,
 } from "../../utils/Utils";
 import Point from "@arcgis/core/geometry/Point";
 import Search from "@arcgis/core/widgets/Search";
 import Legend from "@arcgis/core/widgets/Legend";
-import Polygon from "@arcgis/core/geometry/Polygon";
 import LayerList from "@arcgis/core/widgets/LayerList";
-import SpatialReference from "@arcgis/core/geometry/SpatialReference";
 
 function BucharestMap() {
 	let map: Map,
@@ -39,7 +38,6 @@ function BucharestMap() {
 		zoom = 11,
 		center: Array<number> = [26.096306, 44.439663],
 		basemap = "streets-navigation-vector",
-		graphicsLayer: GraphicsLayer,
 		graphicsLayerFavourite: GraphicsLayer,
 		pointGraphic: Graphic,
 		favouriteGraphic: Graphic,
@@ -97,8 +95,6 @@ function BucharestMap() {
 		graphicCounter++;
 
 		if (graphicCounter <= 1) {
-			graphicsLayer = new GraphicsLayer({ title: "Attractions Layer" });
-
 			map.add(graphicsLayer);
 		}
 
@@ -179,7 +175,8 @@ function BucharestMap() {
 								addPoint(
 									attraction.lat,
 									attraction.long,
-									attraction.title
+									attraction.title,
+									attraction.details
 								);
 							});
 						}
@@ -312,14 +309,21 @@ function BucharestMap() {
 		const polygonGraphic = new Graphic({
 			geometry: poly as any,
 			symbol: simpleFillSymbol,
-			attributes: attributes,
-			popupTemplate: popupTemplate,
+			// attributes: attributes,
+			// popupTemplate: popupTemplate,
 		});
 
 		graphicsLayer.add(polygonGraphic);
 	};
 
-	const addPoint = (lat: number, lng: number, title: String) => {
+	const addPoint = (
+		lat: number,
+		lng: number,
+		title: String,
+		description?: String
+	) => {
+		console.log(description);
+
 		const point = {
 			//Create a point
 			type: "point",
@@ -331,6 +335,7 @@ function BucharestMap() {
 
 		const popupTrailheads = {
 			title: title,
+			content: description ?? "",
 		};
 
 		const simpleMarkerSymbol = {

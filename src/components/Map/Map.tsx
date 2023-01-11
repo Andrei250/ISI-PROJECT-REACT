@@ -24,20 +24,27 @@ import {
 	sortWithoutLocation,
 	routeUrl,
 	sortWithLocation,
+	graphicLayerPoints,
 } from "../../utils/Utils";
 import Point from "@arcgis/core/geometry/Point";
 import Search from "@arcgis/core/widgets/Search";
+import Legend from "@arcgis/core/widgets/Legend";
+import Polygon from "@arcgis/core/geometry/Polygon";
+import LayerList from "@arcgis/core/widgets/LayerList";
+import SpatialReference from "@arcgis/core/geometry/SpatialReference";
 
 function BucharestMap() {
 	let map: Map,
 		view: MapView,
-		zoom = 14,
+		zoom = 11,
 		center: Array<number> = [26.096306, 44.439663],
 		basemap = "streets-navigation-vector",
 		graphicsLayer: GraphicsLayer,
 		graphicsLayerFavourite: GraphicsLayer,
 		pointGraphic: Graphic,
-		favouriteGraphic: Graphic;
+		favouriteGraphic: Graphic,
+		counter: number = 0,
+		graphicCounter: number = 0;
 
 	const mapElement = useRef(null);
 	const navigate = useNavigate();
@@ -87,6 +94,14 @@ function BucharestMap() {
 			container: mapElement.current as any,
 		});
 
+		graphicCounter++;
+
+		if (graphicCounter <= 1) {
+			graphicsLayer = new GraphicsLayer({ title: "Attractions Layer" });
+
+			map.add(graphicsLayer);
+		}
+
 		const locate = new Locate({
 			view: view,
 			useHeadingEnabled: false,
@@ -108,6 +123,24 @@ function BucharestMap() {
 			index: 2,
 		});
 
+		let legend = new Legend({
+			view: view,
+		});
+
+		view.ui.add(legend, "bottom-right");
+
+		let layerList = new LayerList({
+			view: view,
+		});
+		// Adds widget below other elements in the top left corner of the view
+		view.ui.add(layerList, {
+			position: "top-left",
+		});
+
+		addBorder();
+
+		addFeatureLayers();
+
 		view.on("click", function (event) {
 			var lat = Math.round(event.mapPoint.latitude * 1000000) / 1000000;
 			var lon = Math.round(event.mapPoint.longitude * 1000000) / 1000000;
@@ -116,8 +149,6 @@ function BucharestMap() {
 			setFavouriteCoords(arr);
 			addFavouritePoint(lat, lon);
 		});
-
-		addFeatureLayers();
 
 		getAttractions();
 
@@ -214,6 +245,9 @@ function BucharestMap() {
 	}
 
 	const addFeatureLayers = () => {
+		counter++;
+		if (counter > 1) return;
+
 		const popupTrailheads = {
 			title: "{name}",
 		};
@@ -224,12 +258,12 @@ function BucharestMap() {
 
 		map.add(trailheadsLayer);
 
-		// Trails feature layer (lines)
-		const trailsLayer: __esri.FeatureLayer = new FeatureLayer({
-			url: "https://services3.arcgis.com/GVgbJbqm8hXASVYi/arcgis/rest/services/Trails/FeatureServer/0",
-		});
+		// // Trails feature layer (lines)
+		// const trailsLayer: __esri.FeatureLayer = new FeatureLayer({
+		// 	url: "https://services3.arcgis.com/GVgbJbqm8hXASVYi/arcgis/rest/services/Trails/FeatureServer/0",
+		// });
 
-		map.add(trailsLayer, 0);
+		// map.add(trailsLayer, 0);
 
 		// Parks and open spaces (polygons)
 		const parksLayer: __esri.FeatureLayer = new FeatureLayer({
@@ -244,18 +278,48 @@ function BucharestMap() {
 			popupTemplate: popupTrailheads,
 		});
 
-		map.add(touristAttractionsLayer);
-
-		// touristAttractionsLayer.definitionExpression =
-		// 	"tourism = 'attraction' or tourism = 'zoo' or tourism = 'information' or tourism = 'artwork'";
 		touristAttractionsLayer.definitionExpression = "tourism = 'artwork'";
+
+		map.add(touristAttractionsLayer);
+	};
+
+	const addBorder = () => {
+		graphicLayerPoints.map((pnt) => pnt.reverse());
+
+		const poly = {
+			type: "polygon",
+			rings: graphicLayerPoints,
+		};
+
+		const simpleFillSymbol = {
+			type: "simple-fill",
+			color: [102, 204, 255, 0.4],
+			outline: {
+				color: [255, 255, 255],
+				width: 1,
+			},
+		};
+
+		const popupTemplate = {
+			title: "{Name}",
+			content: "{Description}",
+		};
+		const attributes = {
+			Name: "Bucharest",
+			Description: "Teritoriul Bucurestiului",
+		};
+
+		const polygonGraphic = new Graphic({
+			geometry: poly as any,
+			symbol: simpleFillSymbol,
+			attributes: attributes,
+			popupTemplate: popupTemplate,
+		});
+
+		graphicsLayer.add(polygonGraphic);
 	};
 
 	const addPoint = (lat: number, lng: number, title: String) => {
-		graphicsLayer = new GraphicsLayer();
-
-		map.add(graphicsLayer);
-
 		const point = {
 			//Create a point
 			type: "point",
@@ -285,8 +349,6 @@ function BucharestMap() {
 		});
 
 		graphicsLayer.add(pointGraphic);
-
-		// view.graphics.add(pointGraphic);
 	};
 
 	const addFavouritePoint = (lat: number, lng: number) => {

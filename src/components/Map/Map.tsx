@@ -206,7 +206,8 @@ function BucharestMap() {
 						addPoint(
 							attraction.lat,
 							attraction.long,
-							attraction.title
+							attraction.title,
+							attraction.details
 						);
 					});
 				}
@@ -322,8 +323,6 @@ function BucharestMap() {
 		title: String,
 		description?: String
 	) => {
-		console.log(description);
-
 		const point = {
 			//Create a point
 			type: "point",
